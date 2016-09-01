@@ -23,7 +23,8 @@ url_map = {protocol: 'https',
 
 topic_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}.json%{api}"
 raw_template = "%{protocol}://%{host}/raw/%{topic_id}%{post_num}%{api}"
-
+post_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}.json"
+post_link_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}"
 url = topic_template % url_map
 
 #puts "=============================\nGetting #{url}\n===================="
@@ -55,11 +56,13 @@ while post_count < total_posts do
     post_num = post['post_number']
     cooked = post['cooked']
     if PRINT_RAW
+      post_url = raw_template % url_map
       url_map[:post_num] = "/#{post_num}"
-      message_text = open(raw_template % url_map).read
+      message_text = open(post_url).read
     else
       message_text = cooked
     end
+    post_link = post_link_template % url_map
     post_id = post['id']
     replies = post['reply_count']
     reply_to = post['reply_to_post_number']
@@ -78,6 +81,7 @@ Reply-to: #{reply_to}
 Num-Replies: #{replies}
 Read-time: #{avg_time}
 Times-read: #{reads}
+Post-URL: #{post_link}
 
 #{message_text}
 "
