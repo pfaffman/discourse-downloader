@@ -83,4 +83,8 @@ Times-read: #{reads}
     post_stream = data['post_stream']
   end
 
+  post_map.each do |post|
+    puts "Missing post: #{post[0]}" unless post[1]
+  end
+
 end
