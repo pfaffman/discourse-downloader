@@ -4,6 +4,7 @@ require 'json'
 load 'apikeys'
 
 
+PRINT_RAW = true
 
 if API_KEY
   api_string = "?api_key=#{API_KEY}&api_user=#{API_USER}"
@@ -19,7 +20,9 @@ url_map = {protocol: 'https',
            api: api_string
           }
 
+
 topic_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}.json%{api}"
+raw_template = "%{protocol}://%{host}/raw/%{topic_id}%{post_num}%{api}"
 
 url = topic_template % url_map
 
@@ -48,9 +51,15 @@ while post_count < total_posts do
 #    puts "======== Total: #{total_posts} ==#{post['post_number']} ====== Count: #{post_count} ============"
     name = post['name']
     username = post['username']
-    cooked = post['cooked']
     date = post['created_at']
     post_num = post['post_number']
+    cooked = post['cooked']
+    if PRINT_RAW
+      url_map[:post_num] = "/#{post_num}"
+      message_text = open(raw_template % url_map).read
+    else
+      message_text = cooked
+    end
     post_id = post['id']
     replies = post['reply_count']
     reply_to = post['reply_to_post_number']
@@ -60,7 +69,7 @@ while post_count < total_posts do
     post_map[post_id] = post_num
     post_count += 1
     processed_post = "
-From #{username} #{date}
+From #{username} #{post_id} #{date}
 Name: #{name} (#{username})
 Subject: #{title}
 Date: #{date}
@@ -69,7 +78,8 @@ Reply-to: #{reply_to}
 Num-Replies: #{replies}
 Read-time: #{avg_time}
 Times-read: #{reads}
-#{cooked}
+
+#{message_text}
 "
     puts processed_post
   end
@@ -77,14 +87,12 @@ Times-read: #{reads}
     # get new url
     url_map[:post_num] = "/#{post_num + 5}"
     url = topic_template % url_map
-    puts "=============================\nGetting #{url}\n===================="
+    #puts "=============================\nGetting #{url}\n===================="
     web_page = open(url).read
     data = JSON.parse(web_page)
     post_stream = data['post_stream']
   end
-
-  post_map.each do |post|
-    puts "Missing post: #{post[0]}" unless post[1]
-  end
-
+end
+post_map.each do |post|
+  puts "Missing post: #{post[0]}" unless post[1]
 end
