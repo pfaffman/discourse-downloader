@@ -4,13 +4,24 @@ require 'json'
 load 'apikeys'
 
 
-topic_id = 79
-protocol = 'https://'
-host = "dtqr.literatecomputing.com"
-api = "?api_key=#{API_KEY}&api_user=#{API_USER}"
-url = "#{host}t/#{topic_id}.json"
 
-puts url
+if API_KEY
+  api_string = "?api_key=#{API_KEY}&api_user=#{API_USER}"
+   # api: "?api_key=#{API_KEY}&api_user=#{API_USER}",
+else
+  api_string = ""
+end
+
+url_map = {protocol: 'https',
+           host: "dtqr.literatecomputing.com",
+           topic_id: 79,
+           post_num: "", # include slash e.g., "/5"
+           api: api_string
+          }
+
+topic_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}.json%{api}"
+
+url = topic_template % url_map
 
 #puts "=============================\nGetting #{url}\n===================="
 
@@ -64,8 +75,9 @@ Times-read: #{reads}
   end
   if post_count < total_posts
     # get new url
-    url = "#{host}t/#{topic_id}/#{post_num.to_i + 6}.json?api_key=#{API_KEY}&api_user=#{API_USER}"
-#    puts "=============================\nGetting #{url}\n===================="
+    url_map[:post_num] = "/#{post_num + 5}"
+    url = topic_template % url_map
+    puts "=============================\nGetting #{url}\n===================="
     web_page = open(url).read
     data = JSON.parse(web_page)
     post_stream = data['post_stream']
