@@ -1,0 +1,3 @@
+# copy this file to apikeys or apikeys.txt and edit
+API_KEY = "put API key here"
+API_USER = "username"

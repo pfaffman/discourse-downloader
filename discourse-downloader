@@ -1,0 +1,74 @@
+#!/usr/bin/env ruby
+require 'open-uri'
+require 'json'
+load 'apikeys'
+
+
+topic_id = 79
+protocol = 'https://'
+host = "dtqr.literatecomputing.com"
+api = "?api_key=#{API_KEY}&api_user=#{API_USER}"
+url = "#{host}t/#{topic_id}.json"
+
+puts url
+
+#puts "=============================\nGetting #{url}\n===================="
+
+web_page = open(url).read
+data = JSON.parse(web_page)
+post_stream = data['post_stream']
+stream = post_stream['stream']
+post_map = Hash.new
+
+stream.each do |post_id|
+  post_map[post_id] = nil
+end
+
+title = data['title']
+total_posts = data['posts_count']
+
+
+puts "#{title}: #{total_posts} posts"
+
+post_count = 0
+post_num = nil
+while post_count < total_posts do
+  post_stream['posts'].each do |post|
+#    puts "======== Total: #{total_posts} ==#{post['post_number']} ====== Count: #{post_count} ============"
+    name = post['name']
+    username = post['username']
+    cooked = post['cooked']
+    date = post['created_at']
+    post_num = post['post_number']
+    post_id = post['id']
+    replies = post['reply_count']
+    reply_to = post['reply_to_post_number']
+    avg_time = post['avg_time']
+    reads = post['reads']
+    next if post_map[post_id]
+    post_map[post_id] = post_num
+    post_count += 1
+    processed_post = "
+From #{username} #{date}
+Name: #{name} (#{username})
+Subject: #{title}
+Date: #{date}
+Post: #{post_num}
+Reply-to: #{reply_to}
+Num-Replies: #{replies}
+Read-time: #{avg_time}
+Times-read: #{reads}
+#{cooked}
+"
+    puts processed_post
+  end
+  if post_count < total_posts
+    # get new url
+    url = "#{host}t/#{topic_id}/#{post_num.to_i + 6}.json?api_key=#{API_KEY}&api_user=#{API_USER}"
+#    puts "=============================\nGetting #{url}\n===================="
+    web_page = open(url).read
+    data = JSON.parse(web_page)
+    post_stream = data['post_stream']
+  end
+
+end
