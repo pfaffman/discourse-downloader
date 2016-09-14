@@ -1,77 +1,117 @@
 #!/usr/bin/env ruby
 require 'open-uri'
 require 'json'
-load 'apikeys'
+require 'optparse'
+require 'pp'
 
-
+CONFIG_FILE = '~/src/discourse-downloader/apikeys'
 PRINT_RAW = true
 
-if API_KEY
-  api_string = "?api_key=#{API_KEY}&api_user=#{API_USER}"
-   # api: "?api_key=#{API_KEY}&api_user=#{API_USER}",
-else
-  api_string = ""
-end
+# from https://ruby-doc.org/stdlib-2.1.1/libdoc/optparse/rdoc/OptionParser.html
+  def parse_args(args)
+    # The options specified on the command line will be collected in *options*.
+    # We set default values here.
+    options = OpenStruct.new
+    options.html = false
+    options.verbose = false
+    options.config_file = CONFIG_FILE
 
-url_map = {protocol: 'https',
-           host: "dtqr.literatecomputing.com",
-           topic_id: 79,
-           post_num: "", # include slash e.g., "/5"
-           api: api_string
-          }
+    opt_parser = OptionParser.new do |opts|
+      opts.banner = "Usage: #{$PROGRAM_NAME} [options] URL|topic_id..."
 
+      opts.separator ""
+      opts.separator "Specific options:"
 
-topic_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}.json%{api}"
-raw_template = "%{protocol}://%{host}/raw/%{topic_id}%{post_num}%{api}"
-post_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}.json"
-post_link_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}"
-url = topic_template % url_map
+      opts.on("-c", "--config [CONFIG FILE]",
+              "Configuration file. Default is #{CONFIG_FILE}") do |config|
+        options.config_file < config
+      end
 
-#puts "=============================\nGetting #{url}\n===================="
+      # Boolean switch.
+      opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
+        options.verbose = v
+      end
 
-web_page = open(url).read
-data = JSON.parse(web_page)
-post_stream = data['post_stream']
-stream = post_stream['stream']
-post_map = Hash.new
+      opts.on("-m", "--[no-]markdown", "Output Markdown (default)") do |v|
+        options.html = v
+      end
 
-stream.each do |post_id|
-  post_map[post_id] = nil
-end
+      opts.separator ""
+      opts.separator "Common options:"
 
-title = data['title']
-total_posts = data['posts_count']
+      # No argument, shows at tail.  This will print an options summary.
+      # Try it and see!
+      opts.on_tail("-h", "--help", "Show this message") do
+        puts opts
+        exit
+      end
 
-
-puts "#{title}: #{total_posts} posts"
-
-post_count = 0
-post_num = nil
-while post_count < total_posts do
-  post_stream['posts'].each do |post|
-#    puts "======== Total: #{total_posts} ==#{post['post_number']} ====== Count: #{post_count} ============"
-    name = post['name']
-    username = post['username']
-    date = post['created_at']
-    post_num = post['post_number']
-    cooked = post['cooked']
-    if PRINT_RAW
-      post_url = raw_template % url_map
-      url_map[:post_num] = "/#{post_num}"
-      message_text = open(post_url).read
-    else
-      message_text = cooked
     end
-    post_link = post_link_template % url_map
-    post_id = post['id']
-    replies = post['reply_count']
-    reply_to = post['reply_to_post_number']
-    avg_time = post['avg_time']
-    reads = post['reads']
-    next if post_map[post_id]
-    post_map[post_id] = post_num
-    post_count += 1
-    processed_post = "
+
+    opt_parser.parse!(args)
+    options
+  end
+
+
+def print_topic(url_map)
+
+  topic_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}.json%{api}"
+  raw_template = "%{protocol}://%{host}/raw/%{topic_id}%{post_num}%{api}"
+  post_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}.json"
+  post_link_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}"
+  url = topic_template % url_map
+
+  #puts "=============================\nGetting #{url}\n===================="
+
+  # puts "print_topic: Opening #{url}"
+  web_page = open(url).read
+  data = JSON.parse(web_page)
+  post_stream = data['post_stream']
+  stream = post_stream['stream']
+  post_map = Hash.new
+
+  stream.each do |post_id|
+    post_map[post_id] = nil
+  end
+
+  title = data['title']
+  total_posts = data['posts_count']
+
+
+  puts "#{title}: #{total_posts} posts"
+
+  filename = "topic-#{url_map[:topic_id]}.txt"
+
+  File.open(filename, "w") do |file|
+    file.puts "#{title}: #{total_posts} posts"
+
+    post_count = 0
+    post_num = nil
+    while post_count < total_posts do
+      message_text = "this should be erased"
+      post_stream['posts'].each do |post|
+        name = post['name']
+        username = post['username']
+        date = post['created_at']
+        post_num = post['post_number']
+        cooked = post['cooked']
+        if PRINT_RAW
+          url_map[:post_num] = "/#{post_num}"
+          post_url = raw_template % url_map
+          message_text = open(post_url).read
+        else
+          message_text = cooked
+        end
+        post_link = post_link_template % url_map
+        post_id = post['id']
+        replies = post['reply_count']
+        reply_to = post['reply_to_post_number']
+        avg_time = post['avg_time']
+        reads = post['reads']
+        next if post_map[post_id]
+        post_map[post_id] = post_num
+        post_count += 1
+        processed_post = "
 From #{username} #{post_id} #{date}
 Name: #{name} (#{username})
 Subject: #{title}
@@ -85,18 +125,82 @@ Post-URL: #{post_link}
 
 #{message_text}
 "
-    puts processed_post
-  end
-  if post_count < total_posts
-    # get new url
-    url_map[:post_num] = "/#{post_num + 5}"
-    url = topic_template % url_map
-    #puts "=============================\nGetting #{url}\n===================="
-    web_page = open(url).read
-    data = JSON.parse(web_page)
-    post_stream = data['post_stream']
+        file.puts processed_post
+      end
+      if post_count < total_posts
+        # get new url
+        url_map[:post_num] = "/#{post_num + 5}"
+        url = topic_template % url_map
+        #puts "=============================\nGetting #{url}\n===================="
+        web_page = open(url).read
+        data = JSON.parse(web_page)
+        post_stream = data['post_stream']
+      end
+    end
+    post_map.each do |post|
+      puts "Missing post: #{post[0]}" unless post[1]
+    end
   end
 end
-post_map.each do |post|
-  puts "Missing post: #{post[0]}" unless post[1]
+
+
+# TODO add error checking
+
+def main
+  options = parse_args(ARGV)
+  url = ARGV[0]
+
+  load options.config_file
+  if API_KEY
+    api_string = "?api_key=#{API_KEY}&api_user=#{API_USER}"
+  # api: "?api_key=#{API_KEY}&api_user=#{API_USER}",
+  else
+    api_string = ""
+  end
+
+  m = url.match(%r{(^https?)://([A-Za-z0-9.]+)/t/.+?/([0-9]+)})
+  if m
+    url_map = {protocol: m[1],
+               host: m[2],
+               topic_id: m[3],
+               post_num: "", # include slash e.g., "/5"
+               api: api_string
+              }
+
+    print_topic(url_map)
+  end
+
+  m = url.match(%r{(^https?)://([A-Za-z0-9.]+)/c/(.+)})
+  if m
+    puts "Got a category: #{m[3]}"
+    cat_map = {protocol: m[1],
+               host: m[2],
+               cat: m[3],
+               api: api_string
+              }
+    puts "Her is: #{cat_map}"
+    get_cat_topics(cat_map)
+  end
 end
+
+def get_cat_topics(cat_map)
+  cat_template = "%{protocol}://%{host}/c/%{cat}.json%{api}"
+  url = cat_template % cat_map
+  puts "Getting #{url}"
+
+  web_page = open(url).read
+  data = JSON.parse(web_page)
+
+  topic_list = data['topic_list']
+
+  topics = topic_list['topics']
+
+  cat_map[:post_num] = ""
+  topics.each do |topic|
+    puts "#{topic['id']}: #{topic['title']}"
+    cat_map[:topic_id] = topic['id']
+    print_topic(cat_map)
+  end
+end
+
+main
