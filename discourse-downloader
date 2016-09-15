@@ -59,6 +59,7 @@ def print_topic(url_map)
   raw_template = "%{protocol}://%{host}/raw/%{topic_id}%{post_num}%{api}"
   post_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}.json"
   post_link_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}"
+  url_map[:post_num] = "/1" # make sure to start at the top!
   url = topic_template % url_map
 
   #puts "=============================\nGetting #{url}\n===================="
@@ -79,6 +80,7 @@ def print_topic(url_map)
 
 
   puts "#{title}: #{total_posts} posts"
+  puts "#{stream}"
 
   filename = "topic-#{url_map[:topic_id]}.txt"
 
@@ -86,7 +88,8 @@ def print_topic(url_map)
     file.puts "#{title}: #{total_posts} posts"
 
     post_count = 0
-    post_num = nil
+    last_post_downloaded = 0
+    post_num = 1
     while post_count < total_posts do
       message_text = "this should be erased"
       post_stream['posts'].each do |post|
@@ -108,6 +111,7 @@ def print_topic(url_map)
         reply_to = post['reply_to_post_number']
         avg_time = post['avg_time']
         reads = post['reads']
+        puts "Processing #{post_id}."
         next if post_map[post_id]
         post_map[post_id] = post_num
         post_count += 1
@@ -126,19 +130,27 @@ Post-URL: #{post_link}
 #{message_text}
 "
         file.puts processed_post
+        puts "From #{username} #{post_id} #{date}"
       end
       if post_count < total_posts
         # get new url
-        url_map[:post_num] = "/#{post_num + 5}"
-        url = topic_template % url_map
-        #puts "=============================\nGetting #{url}\n===================="
-        web_page = open(url).read
-        data = JSON.parse(web_page)
-        post_stream = data['post_stream']
+        if last_post_downloaded >= post_num
+          puts "Problem finding all posts. Last: #{last_post_downloaded}. Current #{post_num}. Giving up"
+          post_count = 10000000
+        else
+          last_post_downloaded = post_num
+          url_map[:post_num] = "/#{post_num}"
+          url = topic_template % url_map
+          puts "=============================\nGetting #{url}\n===================="
+          web_page = open(url).read
+          data = JSON.parse(web_page)
+          post_stream = data['post_stream']
+        end
       end
     end
     post_map.each do |post|
       puts "Missing post: #{post[0]}" unless post[1]
+      file.puts "Missing post: #{post[0]}" unless post[1]
     end
   end
 end
@@ -163,7 +175,7 @@ def main
     url_map = {protocol: m[1],
                host: m[2],
                topic_id: m[3],
-               post_num: "", # include slash e.g., "/5"
+               post_num: "/1", # include slash e.g., "/5"
                api: api_string
               }
 
