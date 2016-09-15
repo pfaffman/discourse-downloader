@@ -17,7 +17,7 @@ PRINT_RAW = true
     options.config_file = CONFIG_FILE
 
     opt_parser = OptionParser.new do |opts|
-      opts.banner = "Usage: #{$PROGRAM_NAME} [options] URL|topic_id..."
+      opts.banner = "Usage: #{$PROGRAM_NAME} [options] URL"
 
       opts.separator ""
       opts.separator "Specific options:"
@@ -160,7 +160,15 @@ end
 
 def main
   options = parse_args(ARGV)
-  url = ARGV[0]
+
+  if ARGV.empty?
+    parse_args(['-h'])
+  else
+    url = ARGV[0]
+  end
+
+  puts "Got #{url}" unless ARGV.empty?
+  exit
 
   load options.config_file
   if API_KEY
