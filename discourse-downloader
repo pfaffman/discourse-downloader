@@ -3,9 +3,10 @@ require 'open-uri'
 require 'json'
 require 'optparse'
 require 'pp'
+require 'htmltoword'
 
 CONFIG_FILE = '~/src/discourse-downloader/apikeys'
-PRINT_RAW = true
+@print_html = true
 
 # from https://ruby-doc.org/stdlib-2.1.1/libdoc/optparse/rdoc/OptionParser.html
   def parse_args(args)
@@ -32,8 +33,12 @@ PRINT_RAW = true
         options.verbose = v
       end
 
-      opts.on("-m", "--[no-]markdown", "Output Markdown (default)") do |v|
-        options.html = v
+      opts.on("-m", "--[no-]markdown", "Output Markdown") do |m|
+        options.markdown = m
+      end
+
+      opts.on("-w", "--word", "Output docx") do |m|
+        options.word = m
       end
 
       opts.separator ""
@@ -54,6 +59,12 @@ PRINT_RAW = true
 
 
 def print_topic(url_map)
+
+  if @print_html
+    puts "HTML"
+  else
+    puts "NO HTML"
+  end
 
   topic_template = "%{protocol}://%{host}/t/%{topic_id}%{post_num}.json%{api}"
   raw_template = "%{protocol}://%{host}/raw/%{topic_id}%{post_num}%{api}"
@@ -82,11 +93,18 @@ def print_topic(url_map)
   puts "#{title}: #{total_posts} posts"
   puts "#{stream}"
 
-  filename = "topic-#{url_map[:topic_id]}.txt"
+  if @print_html
+    filename = "topic-#{url_map[:topic_id]}.html"
+  else
+    filename = "topic-#{url_map[:topic_id]}.txt"
+  end
 
   File.open(filename, "w") do |file|
-    file.puts "#{title}: #{total_posts} posts"
-
+    if @print_html
+      file.puts "<html><head><title>#{title}: #{total_posts} posts</title></head>"
+    else
+      file.puts "#{title}: #{total_posts} posts"
+    end
     post_count = 0
     last_post_downloaded = 0
     post_num = 1
@@ -98,30 +116,46 @@ def print_topic(url_map)
         date = post['created_at']
         post_num = post['post_number']
         cooked = post['cooked']
-        if PRINT_RAW
+        if @print_html
+          message_text = cooked
+        else
           url_map[:post_num] = "/#{post_num}"
           post_url = raw_template % url_map
           message_text = open(post_url).read
-        else
-          message_text = cooked
         end
         post_link = post_link_template % url_map
         post_id = post['id']
         replies = post['reply_count']
-        reply_to = post['reply_to_post_number']
+        reply_to = post['reply_to_post_number'] || 1
         avg_time = post['avg_time']
         reads = post['reads']
         puts "Processing #{post_id}."
         next if post_map[post_id]
         post_map[post_id] = post_num
         post_count += 1
+        if @print_html
+        processed_post = "
+<hr>
+From #{username} #{post_id} #{date}<br>
+Name: #{name} (#{username})<br>
+Subject: #{title}<br>
+Date: #{date}<br>
+Post: #{post_num}<br>
+In-reply-to: #{reply_to}<br>
+Num-Replies: #{replies}<br>
+Read-time: #{avg_time}<br>
+Times-read: #{reads}<br>
+Post-URL: <a href=\"#{post_link}\">#{post_link}</a><br>
+<br>
+#{message_text}
+"        else
         processed_post = "
 From #{username} #{post_id} #{date}
 Name: #{name} (#{username})
 Subject: #{title}
 Date: #{date}
 Post: #{post_num}
-Reply-to: #{reply_to}
+In-reply-to: #{reply_to}
 Num-Replies: #{replies}
 Read-time: #{avg_time}
 Times-read: #{reads}
@@ -129,6 +163,8 @@ Post-URL: #{post_link}
 
 #{message_text}
 "
+        end
+
         file.puts processed_post
         puts "From #{username} #{post_id} #{date}"
       end
@@ -168,7 +204,6 @@ def main
   end
 
   puts "Got #{url}" unless ARGV.empty?
-  exit
 
   load options.config_file
   if API_KEY
@@ -176,6 +211,14 @@ def main
   # api: "?api_key=#{API_KEY}&api_user=#{API_USER}",
   else
     api_string = ""
+  end
+
+  @print_html= !options.markdown
+
+  if @print_html
+    puts "HTML!"
+  else
+    puts "NO HTMLE!"
   end
 
   m = url.match(%r{(^https?)://([A-Za-z0-9.]+)/t/.+?/([0-9]+)})
