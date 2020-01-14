@@ -75,7 +75,7 @@ def print_topic(url_map)
 
   #puts "=============================\nGetting #{url}\n===================="
 
-  # puts "print_topic: Opening #{url}"
+  puts "print_topic: Opening #{url}"
   web_page = open(url).read
   data = JSON.parse(web_page)
   post_stream = data['post_stream']
@@ -206,11 +206,13 @@ def main
   puts "Got #{url}" unless ARGV.empty?
 
   load options.config_file
-  if API_KEY
-    api_string = "?api_key=#{API_KEY}&api_user=#{API_USER}"
-  # api: "?api_key=#{API_KEY}&api_user=#{API_USER}",
-  else
-    api_string = ""
+  begin
+    if API_KEY
+      api_string = "?api_key=#{API_KEY}&api_user=#{API_USER}"
+    # api: "?api_key=#{API_KEY}&api_user=#{API_USER}",
+    end
+  rescue
+      api_string = ""
   end
 
   @print_html= !options.markdown
