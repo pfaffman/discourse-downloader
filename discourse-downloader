@@ -3,7 +3,7 @@ require 'open-uri'
 require 'json'
 require 'optparse'
 require 'pp'
-require 'htmltoword'
+#require 'htmltoword'
 
 CONFIG_FILE = '~/src/discourse-downloader/apikeys'
 @print_html = true
@@ -205,7 +205,9 @@ def main
 
   puts "Got #{url}" unless ARGV.empty?
 
-  load options.config_file
+  if File.file?(CONFIG_FILE)
+    load options.config_file
+  end
   begin
     if API_KEY
       api_string = "?api_key=#{API_KEY}&api_user=#{API_USER}"
